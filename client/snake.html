@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Snake Multiplayer</title>
+
+<style>
+body {
+  background: black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  color: white;
+  font-family: Arial;
+}
+
+canvas {
+  background: #111;
+  border: 2px solid #22c55e;
+}
+</style>
+</head>
+
+<body>
+
+<div>
+  <h2>🐍 Snake WebSocket</h2>
+  <canvas id="game" width="400" height="400"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let snake = [{x:10, y:10}];
+let dx = 1;
+let dy = 0;
+let food = {x:5, y:5};
+
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowUp") { dx = 0; dy = -1; }
+  if (e.key === "ArrowDown") { dx = 0; dy = 1; }
+  if (e.key === "ArrowLeft") { dx = -1; dy = 0; }
+  if (e.key === "ArrowRight") { dx = 1; dy = 0; }
+});
+
+function draw() {
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, 400, 400);
+
+  ctx.fillStyle = "red";
+  ctx.fillRect(food.x*20, food.y*20, 20, 20);
+
+  ctx.fillStyle = "#22c55e";
+  snake.forEach(s => {
+    ctx.fillRect(s.x*20, s.y*20, 20, 20);
+  });
+}
+
+function update() {
+  const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+  snake.unshift(head);
+
+  if (head.x === food.x && head.y === food.y) {
+    food = {
+      x: Math.floor(Math.random()*20),
+      y: Math.floor(Math.random()*20)
+    };
+  } else {
+    snake.pop();
+  }
+}
+
+function loop() {
+  update();
+  draw();
+}
+
+setInterval(loop, 120);
+</script>
+
+</body>
+</html>

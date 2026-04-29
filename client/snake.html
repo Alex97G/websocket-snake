@@ -252,7 +252,7 @@
 <body>
 
   <h1>Snake PRO Online</h1>
-  <p class="subtitle">Multijugador en vivo con WebSocket, chat, eventos y ranking</p>
+  <p class="subtitle">Multijugador en vivo con WebSocket, chat, eventos, ranking e interpolación</p>
 
   <div class="container">
 
@@ -302,7 +302,7 @@
         </div>
 
         <div class="help">
-          El servidor controla el juego en tiempo real. Los eventos como choques, comida y cambios de nombre aparecen aquí.
+          El servidor controla el estado real. El navegador suaviza el dibujo para reducir la sensación de lag.
         </div>
       </div>
 
@@ -348,12 +348,19 @@
       }
     };
 
+    // Visual local para interpolar
+    let visualPlayers = {};
+
     function connect() {
       socket = new WebSocket(socketUrl);
 
       socket.onopen = function() {
         statusDiv.textContent = "Conectado al servidor PRO";
         statusDiv.style.color = "#00ff99";
+
+        socket.send(JSON.stringify({
+          type: "join"
+        }));
       };
 
       socket.onmessage = function(event) {
@@ -373,7 +380,7 @@
 
           if (data.type === "state") {
             gameState = data;
-            drawGame();
+            syncVisualTargets();
             drawScoreboard();
           }
 
@@ -407,11 +414,84 @@
       };
     }
 
+    function syncVisualTargets() {
+      const players = gameState.players || {};
+
+      for (const id in players) {
+        const player = players[id];
+
+        if (!visualPlayers[id]) {
+          visualPlayers[id] = {
+            id: player.id,
+            name: player.name,
+            color: player.color,
+            score: player.score,
+            snake: player.snake.map(function(part) {
+              return {
+                x: part.x,
+                y: part.y,
+                tx: part.x,
+                ty: part.y
+              };
+            })
+          };
+        }
+
+        const visual = visualPlayers[id];
+
+        visual.name = player.name;
+        visual.color = player.color;
+        visual.score = player.score;
+
+        for (let i = 0; i < player.snake.length; i++) {
+          const target = player.snake[i];
+
+          if (!visual.snake[i]) {
+            visual.snake[i] = {
+              x: target.x,
+              y: target.y,
+              tx: target.x,
+              ty: target.y
+            };
+          }
+
+          visual.snake[i].tx = target.x;
+          visual.snake[i].ty = target.y;
+        }
+
+        visual.snake.length = player.snake.length;
+      }
+
+      for (const id in visualPlayers) {
+        if (!players[id]) {
+          delete visualPlayers[id];
+        }
+      }
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function animateVisualPlayers() {
+      for (const id in visualPlayers) {
+        const player = visualPlayers[id];
+
+        player.snake.forEach(function(part) {
+          part.x = lerp(part.x, part.tx, 0.28);
+          part.y = lerp(part.y, part.ty, 0.28);
+        });
+      }
+    }
+
+    function renderLoop() {
+      animateVisualPlayers();
+      drawGame();
+      requestAnimationFrame(renderLoop);
+    }
+
     function drawGame() {
       const box = gameState.board.box;
-
-      ctx.fillStyle = "#0a8f2a";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       drawBackground();
       drawGrid(box);
@@ -423,6 +503,7 @@
       const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
       gradient.addColorStop(0, "#0a8f2a");
       gradient.addColorStop(1, "#075f24");
+
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
@@ -447,7 +528,9 @@
     }
 
     function drawFoods(box) {
-      gameState.foods.forEach(function(food) {
+      const foods = gameState.foods || [];
+
+      foods.forEach(function(food) {
         ctx.fillStyle = "#ff3333";
         ctx.beginPath();
         ctx.arc(food.x + box / 2, food.y + box / 2, box / 2.7, 0, Math.PI * 2);
@@ -461,10 +544,8 @@
     }
 
     function drawPlayers(box) {
-      const players = gameState.players;
-
-      for (const id in players) {
-        const player = players[id];
+      for (const id in visualPlayers) {
+        const player = visualPlayers[id];
 
         if (!player.snake || player.snake.length === 0) continue;
 
@@ -634,7 +715,7 @@
       }
     });
 
-    drawGame();
+    renderLoop();
     connect();
   </script>
 

@@ -2,51 +2,75 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Snake con Chat WebSocket</title>
+  <title>Snake Multijugador WebSocket</title>
 
   <style>
     body {
       margin: 0;
-      background: #111;
+      background: #101010;
       color: white;
       font-family: Arial, sans-serif;
       text-align: center;
     }
 
     h1 {
-      margin-top: 20px;
+      margin-top: 15px;
+      margin-bottom: 5px;
+    }
+
+    .subtitle {
+      color: #cccccc;
+      margin-top: 0;
     }
 
     .container {
       display: flex;
       justify-content: center;
       align-items: flex-start;
-      gap: 30px;
-      margin-top: 20px;
+      gap: 25px;
       flex-wrap: wrap;
+      padding: 15px;
     }
 
-    .game-area {
-      text-align: center;
+    .game-panel {
+      background: #1c1c1c;
+      padding: 15px;
+      border-radius: 12px;
+      border: 2px solid #333;
     }
 
     canvas {
-      background: #00aa00;
+      background: #0a8f2a;
       border: 4px solid white;
+      display: block;
+      margin: auto;
     }
 
-    .chat-area {
-      width: 320px;
-      background: #222;
-      border: 3px solid #444;
-      border-radius: 10px;
+    .info {
+      margin-top: 10px;
+      font-size: 15px;
+      color: #ddd;
+    }
+
+    .side-panel {
+      width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .card {
+      background: #1c1c1c;
+      border: 2px solid #333;
+      border-radius: 12px;
       padding: 15px;
       text-align: left;
     }
 
-    .chat-area h2 {
+    .card h2 {
       text-align: center;
       margin-top: 0;
+      margin-bottom: 10px;
     }
 
     #status {
@@ -56,11 +80,36 @@
       color: orange;
     }
 
+    #playerInfo {
+      text-align: center;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    #scoreboard {
+      background: #111;
+      border: 1px solid #555;
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 100px;
+      font-size: 14px;
+    }
+
+    .score-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px;
+      margin-bottom: 4px;
+      background: #292929;
+      border-radius: 6px;
+    }
+
     #messages {
-      height: 280px;
+      height: 220px;
       overflow-y: auto;
       background: #111;
       border: 1px solid #555;
+      border-radius: 8px;
       padding: 10px;
       margin-bottom: 10px;
       font-size: 14px;
@@ -69,7 +118,7 @@
     .message {
       margin-bottom: 8px;
       padding: 6px;
-      background: #333;
+      background: #303030;
       border-radius: 6px;
       word-wrap: break-word;
     }
@@ -81,214 +130,164 @@
 
     .input-row {
       display: flex;
-      gap: 5px;
+      gap: 6px;
+      margin-bottom: 8px;
     }
 
-    #messageInput {
+    input {
       flex: 1;
       padding: 8px;
       border: none;
-      border-radius: 5px;
+      border-radius: 6px;
+      outline: none;
     }
 
-    #sendBtn {
+    button {
       padding: 8px 12px;
       border: none;
-      border-radius: 5px;
+      border-radius: 6px;
       background: #2e75b6;
       color: white;
       cursor: pointer;
     }
 
-    #sendBtn:hover {
+    button:hover {
       background: #1f4e79;
     }
 
-    .instructions {
-      margin-top: 10px;
-      font-size: 16px;
+    .help {
+      font-size: 13px;
+      color: #cccccc;
+      line-height: 1.5;
     }
   </style>
 </head>
 
 <body>
 
-  <h1>Snake con Chat WebSocket</h1>
+  <h1>Snake Multijugador</h1>
+  <p class="subtitle">Juego en tiempo real con WebSocket inspirado en Slither.io</p>
 
   <div class="container">
 
-    <div class="game-area">
-      <p>Puntaje: <span id="score">0</span></p>
-      <canvas id="game" width="400" height="400"></canvas>
-      <p class="instructions">Usa las flechas ↑ ↓ ← → para jugar</p>
+    <div class="game-panel">
+      <canvas id="game" width="800" height="600"></canvas>
+
+      <div class="info">
+        Usa las flechas ↑ ↓ ← → para moverte. Abre otra pestaña para probar otro jugador.
+      </div>
     </div>
 
-    <div class="chat-area">
-      <h2>Chat del juego</h2>
-      <div id="status">Conectando...</div>
+    <div class="side-panel">
 
-      <div id="messages"></div>
+      <div class="card">
+        <h2>Estado</h2>
+        <div id="status">Conectando...</div>
+        <div id="playerInfo">Esperando jugador...</div>
 
-      <div class="input-row">
-        <input type="text" id="messageInput" placeholder="Escribe un mensaje...">
-        <button id="sendBtn">Enviar</button>
+        <div class="input-row">
+          <input type="text" id="nameInput" placeholder="Tu nombre">
+          <button id="nameBtn">Cambiar</button>
+        </div>
       </div>
+
+      <div class="card">
+        <h2>Puntajes</h2>
+        <div id="scoreboard"></div>
+      </div>
+
+      <div class="card">
+        <h2>Chat</h2>
+
+        <div id="messages"></div>
+
+        <div class="input-row">
+          <input type="text" id="messageInput" placeholder="Escribe un mensaje...">
+          <button id="sendBtn">Enviar</button>
+        </div>
+
+        <div class="help">
+          El chat se mantiene porque este proyecto nace como una copia del chat WebSocket original.
+          Ahora el mismo canal también sincroniza el juego.
+        </div>
+      </div>
+
     </div>
 
   </div>
 
   <script>
-    // ==========================
-    // JUEGO SNAKE
-    // ==========================
-
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
-    const scoreText = document.getElementById("score");
-
-    const box = 20;
-    let score = 0;
-
-    let snake = [
-      { x: 200, y: 200 }
-    ];
-
-    let food = {
-      x: Math.floor(Math.random() * 20) * box,
-      y: Math.floor(Math.random() * 20) * box
-    };
-
-    let direction = "RIGHT";
-    let nextDirection = "RIGHT";
-
-    document.addEventListener("keydown", function(event) {
-      if (event.key === "ArrowUp" && direction !== "DOWN") {
-        nextDirection = "UP";
-      } else if (event.key === "ArrowDown" && direction !== "UP") {
-        nextDirection = "DOWN";
-      } else if (event.key === "ArrowLeft" && direction !== "RIGHT") {
-        nextDirection = "LEFT";
-      } else if (event.key === "ArrowRight" && direction !== "LEFT") {
-        nextDirection = "RIGHT";
-      }
-    });
-
-    function drawGame() {
-      direction = nextDirection;
-
-      ctx.fillStyle = "#00aa00";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      for (let i = 0; i < snake.length; i++) {
-        ctx.fillStyle = i === 0 ? "#0033ff" : "#00ffff";
-        ctx.fillRect(snake[i].x, snake[i].y, box, box);
-
-        ctx.strokeStyle = "#111";
-        ctx.strokeRect(snake[i].x, snake[i].y, box, box);
-      }
-
-      ctx.fillStyle = "red";
-      ctx.fillRect(food.x, food.y, box, box);
-
-      let headX = snake[0].x;
-      let headY = snake[0].y;
-
-      if (direction === "UP") headY -= box;
-      if (direction === "DOWN") headY += box;
-      if (direction === "LEFT") headX -= box;
-      if (direction === "RIGHT") headX += box;
-
-      if (
-        headX < 0 ||
-        headY < 0 ||
-        headX >= canvas.width ||
-        headY >= canvas.height ||
-        collision(headX, headY, snake)
-      ) {
-        clearInterval(game);
-        alert("Perdiste. Puntaje: " + score);
-        location.reload();
-        return;
-      }
-
-      let newHead = {
-        x: headX,
-        y: headY
-      };
-
-      if (headX === food.x && headY === food.y) {
-        score++;
-        scoreText.textContent = score;
-
-        food = {
-          x: Math.floor(Math.random() * 20) * box,
-          y: Math.floor(Math.random() * 20) * box
-        };
-      } else {
-        snake.pop();
-      }
-
-      snake.unshift(newHead);
-    }
-
-    function collision(x, y, array) {
-      for (let i = 0; i < array.length; i++) {
-        if (x === array[i].x && y === array[i].y) {
-          return true;
-        }
-      }
-      return false;
-    }
-
-    const game = setInterval(drawGame, 150);
-
-    // ==========================
-    // CHAT WEBSOCKET
-    // ==========================
 
     const statusDiv = document.getElementById("status");
+    const playerInfo = document.getElementById("playerInfo");
+    const scoreboard = document.getElementById("scoreboard");
+
     const messagesDiv = document.getElementById("messages");
     const messageInput = document.getElementById("messageInput");
     const sendBtn = document.getElementById("sendBtn");
 
-    const playerName = "Jugador-" + Math.floor(Math.random() * 1000);
+    const nameInput = document.getElementById("nameInput");
+    const nameBtn = document.getElementById("nameBtn");
 
     const socketUrl = "wss://websocket-snake-server-guambi971-dev.apps.rm3.7wse.p1.openshiftapps.com";
 
     let socket;
+    let myId = null;
+    let myName = "";
+    let myColor = "#ffffff";
 
-    function connectChat() {
+    let gameState = {
+      players: {},
+      foods: [],
+      board: {
+        width: 800,
+        height: 600,
+        box: 20
+      }
+    };
+
+    function connect() {
       socket = new WebSocket(socketUrl);
 
       socket.onopen = function() {
-        statusDiv.textContent = "Conectado como " + playerName;
+        statusDiv.textContent = "Conectado al servidor";
         statusDiv.style.color = "#00ff99";
-
-        addMessage("Sistema", "Te conectaste al chat.", true);
-
-        socket.send(JSON.stringify({
-          type: "join",
-          name: playerName,
-          message: playerName + " se unió al juego"
-        }));
       };
 
       socket.onmessage = function(event) {
         try {
           const data = JSON.parse(event.data);
 
-          if (data.name && data.message) {
-            addMessage(data.name, data.message, false);
-          } else {
-            addMessage("Servidor", event.data, false);
+          if (data.type === "welcome") {
+            myId = data.id;
+            myName = data.name;
+            myColor = data.color;
+
+            playerInfo.innerHTML =
+              "Eres <strong style='color:" + myColor + "'>" + myName + "</strong>";
+
+            nameInput.value = myName;
           }
+
+          if (data.type === "state") {
+            gameState = data;
+            drawGame();
+            drawScoreboard();
+          }
+
+          if (data.type === "chat") {
+            addMessage(data.name, data.message, data.name === "Sistema");
+          }
+
         } catch (error) {
           addMessage("Servidor", event.data, false);
         }
       };
 
       socket.onclose = function() {
-        statusDiv.textContent = "Desconectado del chat";
+        statusDiv.textContent = "Desconectado";
         statusDiv.style.color = "red";
         addMessage("Sistema", "Se perdió la conexión con el servidor.", true);
       };
@@ -296,9 +295,139 @@
       socket.onerror = function() {
         statusDiv.textContent = "Error de conexión";
         statusDiv.style.color = "red";
-        addMessage("Sistema", "No se pudo conectar al WebSocket.", true);
+        addMessage("Sistema", "No se pudo conectar al servidor WebSocket.", true);
       };
     }
+
+    function drawGame() {
+      const box = gameState.board.box;
+
+      ctx.fillStyle = "#0a8f2a";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawGrid(box);
+      drawFoods(box);
+      drawPlayers(box);
+    }
+
+    function drawGrid(box) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+
+      for (let x = 0; x < canvas.width; x += box) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+
+      for (let y = 0; y < canvas.height; y += box) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawFoods(box) {
+      gameState.foods.forEach(food => {
+        ctx.fillStyle = "red";
+        ctx.beginPath();
+        ctx.arc(food.x + box / 2, food.y + box / 2, box / 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function drawPlayers(box) {
+      const players = gameState.players;
+
+      for (const id in players) {
+        const player = players[id];
+
+        for (let i = 0; i < player.snake.length; i++) {
+          const part = player.snake[i];
+
+          if (i === 0) {
+            ctx.fillStyle = "#ffffff";
+          } else {
+            ctx.fillStyle = player.color;
+          }
+
+          ctx.beginPath();
+          ctx.arc(part.x + box / 2, part.y + box / 2, box / 2, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = "#111";
+          ctx.stroke();
+        }
+
+        const head = player.snake[0];
+
+        if (head) {
+          ctx.fillStyle = "white";
+          ctx.font = "12px Arial";
+          ctx.fillText(player.name, head.x - 5, head.y - 6);
+        }
+      }
+    }
+
+    function drawScoreboard() {
+      const players = gameState.players;
+      const list = Object.values(players).sort((a, b) => b.score - a.score);
+
+      if (list.length === 0) {
+        scoreboard.innerHTML = "No hay jugadores conectados.";
+        return;
+      }
+
+      let html = "";
+
+      list.forEach(player => {
+        html += `
+          <div class="score-row">
+            <span style="color:${player.color}">
+              ${player.name}${player.id === myId ? " (tú)" : ""}
+            </span>
+            <strong>${player.score}</strong>
+          </div>
+        `;
+      });
+
+      scoreboard.innerHTML = html;
+    }
+
+    function sendDirection(direction) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+      socket.send(JSON.stringify({
+        type: "direction",
+        direction: direction
+      }));
+    }
+
+    document.addEventListener("keydown", function(event) {
+      if (
+        document.activeElement === messageInput ||
+        document.activeElement === nameInput
+      ) {
+        return;
+      }
+
+      if (event.key === "ArrowUp") {
+        sendDirection("UP");
+      }
+
+      if (event.key === "ArrowDown") {
+        sendDirection("DOWN");
+      }
+
+      if (event.key === "ArrowLeft") {
+        sendDirection("LEFT");
+      }
+
+      if (event.key === "ArrowRight") {
+        sendDirection("RIGHT");
+      }
+    });
 
     function addMessage(name, message, isSystem) {
       const div = document.createElement("div");
@@ -317,28 +446,40 @@
     function sendMessage() {
       const text = messageInput.value.trim();
 
-      if (text === "") {
-        return;
-      }
+      if (text === "") return;
 
       if (!socket || socket.readyState !== WebSocket.OPEN) {
         addMessage("Sistema", "No estás conectado al chat.", true);
         return;
       }
 
-      const messageData = {
+      socket.send(JSON.stringify({
         type: "chat",
-        name: playerName,
         message: text
-      };
-
-      socket.send(JSON.stringify(messageData));
+      }));
 
       messageInput.value = "";
       messageInput.focus();
     }
 
+    function changeName() {
+      const newName = nameInput.value.trim();
+
+      if (newName === "") return;
+
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        addMessage("Sistema", "No estás conectado.", true);
+        return;
+      }
+
+      socket.send(JSON.stringify({
+        type: "rename",
+        name: newName
+      }));
+    }
+
     sendBtn.addEventListener("click", sendMessage);
+    nameBtn.addEventListener("click", changeName);
 
     messageInput.addEventListener("keydown", function(event) {
       if (event.key === "Enter") {
@@ -346,7 +487,14 @@
       }
     });
 
-    connectChat();
+    nameInput.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        changeName();
+      }
+    });
+
+    drawGame();
+    connect();
   </script>
 
 </body>

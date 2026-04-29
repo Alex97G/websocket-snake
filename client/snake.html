@@ -1,119 +1,140 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Snake Multiplayer</title>
+  <meta charset="UTF-8">
+  <title>Snake WebSocket</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
 
-<style>
-body {
-  background: black;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  color: white;
-  font-family: Arial;
-}
+    h1 {
+      margin-top: 20px;
+    }
 
-canvas {
-  background: #111;
-  border: 2px solid #22c55e;
-}
-</style>
+    canvas {
+      background: #00aa00;
+      border: 4px solid white;
+      margin-top: 20px;
+    }
+
+    p {
+      font-size: 18px;
+    }
+  </style>
 </head>
-
 <body>
 
-<div>
-  <h2>🐍 Snake WebSocket</h2>
+  <h1>Juego Snake</h1>
+  <p>Puntaje: <span id="score">0</span></p>
   <canvas id="game" width="400" height="400"></canvas>
-</div>
+  <p>Usa las flechas del teclado para moverte</p>
 
-<script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const scoreText = document.getElementById("score");
 
-// 🔗 TU WEBSOCKET (YA CONFIGURADO)
-const socket = new WebSocket("wss://websocket-snake-server-guambi971-dev.apps.rm3.7wse.p1.openshiftapps.com");
+    const box = 20;
+    let score = 0;
 
-let snake = [{x:10, y:10}];
-let dx = 1;
-let dy = 0;
-let food = {x:5, y:5};
+    let snake = [
+      { x: 200, y: 200 }
+    ];
 
-// 🎮 CONTROLES
-document.addEventListener("keydown", e => {
-  if (e.key === "ArrowUp") { dx = 0; dy = -1; }
-  if (e.key === "ArrowDown") { dx = 0; dy = 1; }
-  if (e.key === "ArrowLeft") { dx = -1; dy = 0; }
-  if (e.key === "ArrowRight") { dx = 1; dy = 0; }
-
-  // 🔥 enviar movimiento al server
-  if (socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({
-      type: "move",
-      dx,
-      dy
-    }));
-  }
-});
-
-// 📡 recibir estado del server
-socket.onmessage = (e) => {
-  const data = JSON.parse(e.data);
-
-  if (data.type === "state") {
-    snake = data.snake;
-    food = data.food;
-  }
-};
-
-// 🎨 dibujar
-function draw() {
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, 400, 400);
-
-  ctx.fillStyle = "red";
-  ctx.fillRect(food.x*20, food.y*20, 20, 20);
-
-  ctx.fillStyle = "#22c55e";
-  snake.forEach(s => {
-    ctx.fillRect(s.x*20, s.y*20, 20, 20);
-  });
-}
-
-// 🔁 actualizar local (fallback si no hay server)
-function update() {
-  const head = {x: snake[0].x + dx, y: snake[0].y + dy};
-  snake.unshift(head);
-
-  if (head.x === food.x && head.y === food.y) {
-    food = {
-      x: Math.floor(Math.random()*20),
-      y: Math.floor(Math.random()*20)
+    let food = {
+      x: Math.floor(Math.random() * 20) * box,
+      y: Math.floor(Math.random() * 20) * box
     };
-  } else {
-    snake.pop();
-  }
-}
 
-// 🧠 loop
-function loop() {
-  draw();
-}
+    let direction = "RIGHT";
+    let nextDirection = "RIGHT";
 
-// 🔄 solo dibuja (el server manda lógica)
-setInterval(loop, 120);
+    document.addEventListener("keydown", function(event) {
+      if (event.key === "ArrowUp" && direction !== "DOWN") {
+        nextDirection = "UP";
+      } else if (event.key === "ArrowDown" && direction !== "UP") {
+        nextDirection = "DOWN";
+      } else if (event.key === "ArrowLeft" && direction !== "RIGHT") {
+        nextDirection = "LEFT";
+      } else if (event.key === "ArrowRight" && direction !== "LEFT") {
+        nextDirection = "RIGHT";
+      }
+    });
 
-// 🔥 fallback local si no conecta
-socket.onerror = () => {
-  console.log("Servidor no disponible, modo local");
-  setInterval(() => {
-    update();
-    draw();
-  }, 120);
-};
-</script>
+    function drawGame() {
+      direction = nextDirection;
+
+      ctx.fillStyle = "#00aa00";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < snake.length; i++) {
+        ctx.fillStyle = i === 0 ? "#0033ff" : "#00ffff";
+        ctx.fillRect(snake[i].x, snake[i].y, box, box);
+
+        ctx.strokeStyle = "#111";
+        ctx.strokeRect(snake[i].x, snake[i].y, box, box);
+      }
+
+      ctx.fillStyle = "red";
+      ctx.fillRect(food.x, food.y, box, box);
+
+      let headX = snake[0].x;
+      let headY = snake[0].y;
+
+      if (direction === "UP") headY -= box;
+      if (direction === "DOWN") headY += box;
+      if (direction === "LEFT") headX -= box;
+      if (direction === "RIGHT") headX += box;
+
+      if (
+        headX < 0 ||
+        headY < 0 ||
+        headX >= canvas.width ||
+        headY >= canvas.height ||
+        collision(headX, headY, snake)
+      ) {
+        clearInterval(game);
+        alert("Perdiste. Puntaje: " + score);
+        location.reload();
+        return;
+      }
+
+      let newHead = {
+        x: headX,
+        y: headY
+      };
+
+      if (headX === food.x && headY === food.y) {
+        score++;
+        scoreText.textContent = score;
+
+        food = {
+          x: Math.floor(Math.random() * 20) * box,
+          y: Math.floor(Math.random() * 20) * box
+        };
+      } else {
+        snake.pop();
+      }
+
+      snake.unshift(newHead);
+    }
+
+    function collision(x, y, array) {
+      for (let i = 0; i < array.length; i++) {
+        if (x === array[i].x && y === array[i].y) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    const game = setInterval(drawGame, 150);
+  </script>
 
 </body>
 </html>

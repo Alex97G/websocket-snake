@@ -38,14 +38,15 @@
     }
 
     .panel {
-      width: 360px;
+      width: 390px;
       background: #151515;
       border-left: 3px solid #333;
-      padding: 16px;
+      padding: 14px;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
+      overflow-y: auto;
     }
 
     h1 {
@@ -83,7 +84,7 @@
 
     #scoreboard {
       font-size: 16px;
-      min-height: 120px;
+      min-height: 90px;
     }
 
     .score-row {
@@ -96,7 +97,7 @@
     }
 
     #messages {
-      height: 230px;
+      height: 180px;
       overflow-y: auto;
       background: #111;
       border: 1px solid #555;
@@ -125,6 +126,20 @@
       line-height: 1.5;
     }
 
+    .qr-box {
+      display: flex;
+      justify-content: center;
+      margin: 12px 0;
+    }
+
+    .qr-box img {
+      width: 220px;
+      height: 220px;
+      background: white;
+      padding: 10px;
+      border-radius: 12px;
+    }
+
     .url {
       color: #00ff99;
       font-size: 13px;
@@ -151,16 +166,26 @@
 
     <div class="panel">
       <h1>Snake Online</h1>
+
       <div class="subtitle">
         Pantalla principal para proyectar en clase
       </div>
 
       <div class="card">
-        <h2>Estado</h2>
+        <h2>Escanea para jugar</h2>
+
         <div id="status">Conectando...</div>
 
         <div class="qr-info">
-          Los jugadores entran desde su celular a:
+          <strong>Escanea este QR desde tu celular:</strong>
+
+          <div class="qr-box">
+            <img 
+              src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=https%3A%2F%2Fwebsocket-snake-client-guambi971-dev.apps.rm3.7wse.p1.openshiftapps.com%2Fsnake.html"
+              alt="QR para entrar al juego Snake"
+            >
+          </div>
+
           <div class="url">
             https://websocket-snake-client-guambi971-dev.apps.rm3.7wse.p1.openshiftapps.com/snake.html
           </div>

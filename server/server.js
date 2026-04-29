@@ -9,16 +9,18 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 // ==========================
-// CONFIGURACIÓN DEL JUEGO
+// CONFIGURACIÓN PRO
 // ==========================
 
 const BOARD_WIDTH = 800;
 const BOARD_HEIGHT = 600;
 const BOX = 20;
 
-const GAME_SPEED = 100; // Menor número = más rápido. Recomendado: 100
-
-const MAX_FOODS = 20;
+const GAME_SPEED = 80;        // Más bajo = más rápido
+const STATE_SPEED = 80;       // Cada cuánto se manda estado
+const MAX_FOODS = 28;
+const INITIAL_LENGTH = 4;
+const MAX_NAME_LENGTH = 18;
 
 const colors = [
   "#00ffff",
@@ -30,22 +32,25 @@ const colors = [
   "#00ff99",
   "#ff9933",
   "#3399ff",
-  "#ffffff"
+  "#ffffff",
+  "#ff4444",
+  "#44ffcc"
 ];
 
 let players = {};
 let foods = [];
+let eventHistory = [];
 
 // ==========================
-// RUTA HTTP PARA PROBAR SERVER
+// RUTA DE PRUEBA
 // ==========================
 
 app.get("/", (req, res) => {
-  res.send("Servidor WebSocket Snake activo");
+  res.send("Servidor PRO WebSocket Snake activo");
 });
 
 // ==========================
-// FUNCIONES AUXILIARES
+// UTILIDADES
 // ==========================
 
 function generateId() {
@@ -63,13 +68,15 @@ function randomPosition() {
   };
 }
 
-function createFood() {
-  const position = randomPosition();
+function sanitizeName(name) {
+  return String(name || "")
+    .trim()
+    .replace(/[<>]/g, "")
+    .substring(0, MAX_NAME_LENGTH);
+}
 
-  return {
-    x: position.x,
-    y: position.y
-  };
+function createFood() {
+  return randomPosition();
 }
 
 function fillFoods() {
@@ -78,22 +85,32 @@ function fillFoods() {
   }
 }
 
+function createSnake(position) {
+  const snake = [];
+
+  for (let i = 0; i < INITIAL_LENGTH; i++) {
+    snake.push({
+      x: position.x - BOX * i,
+      y: position.y
+    });
+  }
+
+  return snake;
+}
+
 function createPlayer(id) {
   const position = randomPosition();
 
   return {
-    id: id,
+    id,
     name: "Jugador-" + Math.floor(Math.random() * 1000),
     color: randomColor(),
     score: 0,
+    alive: true,
     direction: "RIGHT",
     nextDirection: "RIGHT",
-    alive: true,
-    snake: [
-      { x: position.x, y: position.y },
-      { x: position.x - BOX, y: position.y },
-      { x: position.x - BOX * 2, y: position.y }
-    ]
+    snake: createSnake(position),
+    lastInputAt: Date.now()
   };
 }
 
@@ -104,20 +121,6 @@ function isOppositeDirection(current, next) {
     (current === "LEFT" && next === "RIGHT") ||
     (current === "RIGHT" && next === "LEFT")
   );
-}
-
-function resetPlayer(player) {
-  const position = randomPosition();
-
-  player.score = 0;
-  player.direction = "RIGHT";
-  player.nextDirection = "RIGHT";
-  player.alive = true;
-  player.snake = [
-    { x: position.x, y: position.y },
-    { x: position.x - BOX, y: position.y },
-    { x: position.x - BOX * 2, y: position.y }
-  ];
 }
 
 function broadcast(data) {
@@ -136,25 +139,66 @@ function sendTo(ws, data) {
   }
 }
 
-function broadcastChat(name, message) {
+function addEvent(message) {
+  const event = {
+    type: "event",
+    name: "Sistema",
+    message,
+    time: Date.now()
+  };
+
+  eventHistory.unshift(event);
+
+  if (eventHistory.length > 30) {
+    eventHistory.pop();
+  }
+
   broadcast({
     type: "chat",
-    name: name,
-    message: message
+    name: "Sistema",
+    message
   });
 }
 
-function sendGameState() {
+function broadcastChat(name, message) {
   broadcast({
+    type: "chat",
+    name,
+    message
+  });
+}
+
+function resetPlayer(player, reason) {
+  const position = randomPosition();
+
+  player.score = Math.max(0, player.score - 1);
+  player.alive = true;
+  player.direction = "RIGHT";
+  player.nextDirection = "RIGHT";
+  player.snake = createSnake(position);
+
+  if (reason) {
+    addEvent(reason);
+  }
+}
+
+function getPublicState() {
+  return {
     type: "state",
-    players: players,
-    foods: foods,
+    players,
+    foods,
+    events: eventHistory,
     board: {
       width: BOARD_WIDTH,
       height: BOARD_HEIGHT,
       box: BOX
-    }
-  });
+    },
+    serverTime: Date.now()
+  };
+}
+
+function sendGameState() {
+  broadcast(getPublicState());
 }
 
 // ==========================
@@ -162,8 +206,7 @@ function sendGameState() {
 // ==========================
 
 function updatePlayer(player) {
-  if (!player.alive || !player.snake || player.snake.length === 0) {
-    resetPlayer(player);
+  if (!player || !player.snake || player.snake.length === 0) {
     return;
   }
 
@@ -178,57 +221,46 @@ function updatePlayer(player) {
     y: head.y
   };
 
-  if (player.direction === "UP") {
-    newHead.y -= BOX;
-  }
+  if (player.direction === "UP") newHead.y -= BOX;
+  if (player.direction === "DOWN") newHead.y += BOX;
+  if (player.direction === "LEFT") newHead.x -= BOX;
+  if (player.direction === "RIGHT") newHead.x += BOX;
 
-  if (player.direction === "DOWN") {
-    newHead.y += BOX;
-  }
-
-  if (player.direction === "LEFT") {
-    newHead.x -= BOX;
-  }
-
-  if (player.direction === "RIGHT") {
-    newHead.x += BOX;
-  }
-
-  // Si choca con el borde, reaparece
+  // Choque con borde
   if (
     newHead.x < 0 ||
     newHead.y < 0 ||
     newHead.x >= BOARD_WIDTH ||
     newHead.y >= BOARD_HEIGHT
   ) {
-    broadcastChat("Sistema", player.name + " chocó con el borde y reapareció.");
-    resetPlayer(player);
+    resetPlayer(player, player.name + " chocó con el borde y reapareció.");
     return;
   }
 
-  // Si choca consigo mismo, reaparece
+  // Choque consigo mismo
   for (let i = 1; i < player.snake.length; i++) {
-    if (newHead.x === player.snake[i].x && newHead.y === player.snake[i].y) {
-      broadcastChat("Sistema", player.name + " chocó consigo mismo y reapareció.");
-      resetPlayer(player);
+    const part = player.snake[i];
+
+    if (newHead.x === part.x && newHead.y === part.y) {
+      resetPlayer(player, player.name + " chocó consigo mismo y reapareció.");
       return;
     }
   }
 
-  // Si choca con otro jugador, reaparece
+  // Choque con otros jugadores
   for (const otherId in players) {
     const otherPlayer = players[otherId];
 
-    if (otherId === player.id) {
-      continue;
-    }
+    if (!otherPlayer || otherId === player.id) continue;
 
     for (let i = 0; i < otherPlayer.snake.length; i++) {
       const part = otherPlayer.snake[i];
 
       if (newHead.x === part.x && newHead.y === part.y) {
-        broadcastChat("Sistema", player.name + " chocó con " + otherPlayer.name + " y reapareció.");
-        resetPlayer(player);
+        resetPlayer(
+          player,
+          player.name + " chocó con " + otherPlayer.name + " y reapareció."
+        );
         return;
       }
     }
@@ -245,6 +277,11 @@ function updatePlayer(player) {
       player.score++;
       foods.splice(i, 1);
       ateFood = true;
+
+      if (player.score % 5 === 0) {
+        addEvent(player.name + " llegó a " + player.score + " puntos.");
+      }
+
       break;
     }
   }
@@ -260,7 +297,9 @@ function gameLoop() {
   for (const id in players) {
     updatePlayer(players[id]);
   }
+}
 
+function stateLoop() {
   sendGameState();
 }
 
@@ -272,10 +311,10 @@ wss.on("connection", (ws) => {
   const id = generateId();
   const player = createPlayer(id);
 
-  players[id] = player;
   ws.playerId = id;
+  players[id] = player;
 
-  console.log("Jugador conectado:", id);
+  console.log("Jugador conectado:", player.name);
 
   sendTo(ws, {
     type: "welcome",
@@ -284,7 +323,12 @@ wss.on("connection", (ws) => {
     color: player.color
   });
 
-  broadcastChat("Sistema", player.name + " se unió al juego.");
+  sendTo(ws, {
+    type: "history",
+    events: eventHistory
+  });
+
+  addEvent(player.name + " se unió al juego.");
   sendGameState();
 
   ws.on("message", (message) => {
@@ -293,15 +337,13 @@ wss.on("connection", (ws) => {
     try {
       data = JSON.parse(message.toString());
     } catch (error) {
-      console.log("Mensaje no válido:", message.toString());
+      console.log("Mensaje inválido:", message.toString());
       return;
     }
 
     const currentPlayer = players[ws.playerId];
 
-    if (!currentPlayer) {
-      return;
-    }
+    if (!currentPlayer) return;
 
     if (data.type === "direction") {
       const direction = data.direction;
@@ -314,12 +356,13 @@ wss.on("connection", (ws) => {
       ) {
         if (!isOppositeDirection(currentPlayer.direction, direction)) {
           currentPlayer.nextDirection = direction;
+          currentPlayer.lastInputAt = Date.now();
         }
       }
     }
 
     if (data.type === "chat") {
-      const text = String(data.message || "").trim();
+      const text = String(data.message || "").trim().substring(0, 120);
 
       if (text !== "") {
         broadcastChat(currentPlayer.name, text);
@@ -327,12 +370,11 @@ wss.on("connection", (ws) => {
     }
 
     if (data.type === "rename") {
-      const newName = String(data.name || "").trim();
+      const newName = sanitizeName(data.name);
 
       if (newName !== "") {
         const oldName = currentPlayer.name;
-
-        currentPlayer.name = newName.substring(0, 20);
+        currentPlayer.name = newName;
 
         sendTo(ws, {
           type: "welcome",
@@ -341,7 +383,7 @@ wss.on("connection", (ws) => {
           color: currentPlayer.color
         });
 
-        broadcastChat("Sistema", oldName + " ahora se llama " + currentPlayer.name + ".");
+        addEvent(oldName + " ahora se llama " + currentPlayer.name + ".");
         sendGameState();
       }
     }
@@ -351,7 +393,7 @@ wss.on("connection", (ws) => {
     const disconnectedPlayer = players[ws.playerId];
 
     if (disconnectedPlayer) {
-      broadcastChat("Sistema", disconnectedPlayer.name + " salió del juego.");
+      addEvent(disconnectedPlayer.name + " salió del juego.");
       console.log("Jugador desconectado:", disconnectedPlayer.name);
       delete players[ws.playerId];
       sendGameState();
@@ -364,13 +406,14 @@ wss.on("connection", (ws) => {
 });
 
 // ==========================
-// INICIAR SERVIDOR
+// INICIAR
 // ==========================
 
 fillFoods();
 
 setInterval(gameLoop, GAME_SPEED);
+setInterval(stateLoop, STATE_SPEED);
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log("Servidor WebSocket Snake escuchando en puerto " + PORT);
+  console.log("Servidor PRO WebSocket Snake escuchando en puerto " + PORT);
 });

@@ -1,7 +1,7 @@
 {
   "name": "websocket-snake-server",
   "version": "1.0.0",
-  "description": "Servidor WebSocket para Snake multijugador con chat",
+  "description": "Servidor PRO WebSocket para Snake multijugador con chat",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

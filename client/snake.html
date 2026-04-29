@@ -33,18 +33,42 @@ canvas {
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
+// 🔗 TU WEBSOCKET (YA CONFIGURADO)
+const socket = new WebSocket("wss://websocket-snake-server-guambi971-dev.apps.rm3.7wse.p1.openshiftapps.com");
+
 let snake = [{x:10, y:10}];
 let dx = 1;
 let dy = 0;
 let food = {x:5, y:5};
 
+// 🎮 CONTROLES
 document.addEventListener("keydown", e => {
   if (e.key === "ArrowUp") { dx = 0; dy = -1; }
   if (e.key === "ArrowDown") { dx = 0; dy = 1; }
   if (e.key === "ArrowLeft") { dx = -1; dy = 0; }
   if (e.key === "ArrowRight") { dx = 1; dy = 0; }
+
+  // 🔥 enviar movimiento al server
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({
+      type: "move",
+      dx,
+      dy
+    }));
+  }
 });
 
+// 📡 recibir estado del server
+socket.onmessage = (e) => {
+  const data = JSON.parse(e.data);
+
+  if (data.type === "state") {
+    snake = data.snake;
+    food = data.food;
+  }
+};
+
+// 🎨 dibujar
 function draw() {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, 400, 400);
@@ -58,6 +82,7 @@ function draw() {
   });
 }
 
+// 🔁 actualizar local (fallback si no hay server)
 function update() {
   const head = {x: snake[0].x + dx, y: snake[0].y + dy};
   snake.unshift(head);
@@ -72,12 +97,22 @@ function update() {
   }
 }
 
+// 🧠 loop
 function loop() {
-  update();
   draw();
 }
 
+// 🔄 solo dibuja (el server manda lógica)
 setInterval(loop, 120);
+
+// 🔥 fallback local si no conecta
+socket.onerror = () => {
+  console.log("Servidor no disponible, modo local");
+  setInterval(() => {
+    update();
+    draw();
+  }, 120);
+};
 </script>
 
 </body>

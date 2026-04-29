@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Pantalla Snake Multijugador</title>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #080808;
+      color: white;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    .layout {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .game-zone {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #080808;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    canvas {
+      background: #0a8f2a;
+      border: 5px solid white;
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .panel {
+      width: 360px;
+      background: #151515;
+      border-left: 3px solid #333;
+      padding: 16px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    h1 {
+      text-align: center;
+      margin: 0;
+      font-size: 28px;
+      color: #00ff99;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #ccc;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .card {
+      background: #222;
+      border: 2px solid #333;
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .card h2 {
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+
+    #status {
+      text-align: center;
+      color: orange;
+      margin-bottom: 10px;
+    }
+
+    #scoreboard {
+      font-size: 16px;
+      min-height: 120px;
+    }
+
+    .score-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px;
+      margin-bottom: 6px;
+      background: #303030;
+      border-radius: 8px;
+    }
+
+    #messages {
+      height: 230px;
+      overflow-y: auto;
+      background: #111;
+      border: 1px solid #555;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    .message {
+      margin-bottom: 8px;
+      padding: 6px;
+      background: #303030;
+      border-radius: 6px;
+      word-wrap: break-word;
+    }
+
+    .system {
+      color: #00ff99;
+      font-style: italic;
+    }
+
+    .qr-info {
+      text-align: center;
+      font-size: 14px;
+      color: #ddd;
+      line-height: 1.5;
+    }
+
+    .url {
+      color: #00ff99;
+      font-size: 13px;
+      word-break: break-all;
+      margin-top: 6px;
+    }
+
+    .mode {
+      text-align: center;
+      color: #ffcc00;
+      font-size: 13px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="layout">
+
+    <div class="game-zone">
+      <canvas id="game" width="800" height="600"></canvas>
+    </div>
+
+    <div class="panel">
+      <h1>Snake Online</h1>
+      <div class="subtitle">
+        Pantalla principal para proyectar en clase
+      </div>
+
+      <div class="card">
+        <h2>Estado</h2>
+        <div id="status">Conectando...</div>
+
+        <div class="qr-info">
+          Los jugadores entran desde su celular a:
+          <div class="url">
+            https://websocket-snake-client-guambi971-dev.apps.rm3.7wse.p1.openshiftapps.com/snake.html
+          </div>
+        </div>
+
+        <div class="mode">
+          Esta pantalla solo observa, no juega.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Puntajes</h2>
+        <div id="scoreboard">Esperando jugadores...</div>
+      </div>
+
+      <div class="card">
+        <h2>Eventos y chat</h2>
+        <div id="messages"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ==========================
+    // ELEMENTOS HTML
+    // ==========================
+
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const statusDiv = document.getElementById("status");
+    const scoreboard = document.getElementById("scoreboard");
+    const messagesDiv = document.getElementById("messages");
+
+    // ==========================
+    // CONFIGURACIÓN WEBSOCKET
+    // ==========================
+
+    const socketUrl = "wss://websocket-snake-server-guambi971-dev.apps.rm3.7wse.p1.openshiftapps.com";
+
+    let socket;
+
+    let gameState = {
+      players: {},
+      foods: [],
+      board: {
+        width: 800,
+        height: 600,
+        box: 20
+      }
+    };
+
+    // ==========================
+    // CONEXIÓN AL SERVIDOR
+    // ==========================
+
+    function connect() {
+      socket = new WebSocket(socketUrl);
+
+      socket.onopen = function() {
+        statusDiv.textContent = "Pantalla conectada al servidor";
+        statusDiv.style.color = "#00ff99";
+      };
+
+      socket.onmessage = function(event) {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === "state") {
+            gameState = data;
+            drawGame();
+            drawScoreboard();
+          }
+
+          if (data.type === "chat") {
+            addMessage(data.name, data.message, data.name === "Sistema");
+          }
+
+        } catch (error) {
+          addMessage("Servidor", event.data, false);
+        }
+      };
+
+      socket.onclose = function() {
+        statusDiv.textContent = "Desconectado";
+        statusDiv.style.color = "red";
+        addMessage("Sistema", "La pantalla perdió conexión con el servidor.", true);
+      };
+
+      socket.onerror = function() {
+        statusDiv.textContent = "Error de conexión";
+        statusDiv.style.color = "red";
+        addMessage("Sistema", "No se pudo conectar al servidor WebSocket.", true);
+      };
+    }
+
+    // ==========================
+    // DIBUJAR JUEGO
+    // ==========================
+
+    function drawGame() {
+      const box = gameState.board.box;
+
+      ctx.fillStyle = "#0a8f2a";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawGrid(box);
+      drawFoods(box);
+      drawPlayers(box);
+    }
+
+    function drawGrid(box) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+
+      for (let x = 0; x < canvas.width; x += box) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+
+      for (let y = 0; y < canvas.height; y += box) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawFoods(box) {
+      gameState.foods.forEach(food => {
+        ctx.fillStyle = "red";
+        ctx.beginPath();
+        ctx.arc(food.x + box / 2, food.y + box / 2, box / 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function drawPlayers(box) {
+      const players = gameState.players;
+
+      for (const id in players) {
+        const player = players[id];
+
+        for (let i = 0; i < player.snake.length; i++) {
+          const part = player.snake[i];
+
+          ctx.fillStyle = i === 0 ? "#ffffff" : player.color;
+
+          ctx.beginPath();
+          ctx.arc(part.x + box / 2, part.y + box / 2, box / 2, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = "#111";
+          ctx.stroke();
+        }
+
+        const head = player.snake[0];
+
+        if (head) {
+          ctx.fillStyle = "white";
+          ctx.font = "bold 14px Arial";
+          ctx.fillText(player.name, head.x - 5, head.y - 8);
+        }
+      }
+    }
+
+    // ==========================
+    // PUNTAJES
+    // ==========================
+
+    function drawScoreboard() {
+      const players = gameState.players;
+      const list = Object.values(players).sort((a, b) => b.score - a.score);
+
+      if (list.length === 0) {
+        scoreboard.innerHTML = "No hay jugadores conectados.";
+        return;
+      }
+
+      let html = "";
+
+      list.forEach((player, index) => {
+        html += `
+          <div class="score-row">
+            <span style="color:${player.color}">
+              ${index + 1}. ${player.name}
+            </span>
+            <strong>${player.score}</strong>
+          </div>
+        `;
+      });
+
+      scoreboard.innerHTML = html;
+    }
+
+    // ==========================
+    // EVENTOS Y CHAT
+    // ==========================
+
+    function addMessage(name, message, isSystem) {
+      const div = document.createElement("div");
+      div.className = "message";
+
+      if (isSystem) {
+        div.innerHTML = '<span class="system">' + message + '</span>';
+      } else {
+        div.innerHTML = "<strong>" + name + ":</strong> " + message;
+      }
+
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // ==========================
+    // INICIAR
+    // ==========================
+
+    drawGame();
+    connect();
+  </script>
+
+</body>
+</html>

@@ -16,8 +16,8 @@ const BOARD_WIDTH = 800;
 const BOARD_HEIGHT = 600;
 const BOX = 20;
 
-const GAME_SPEED = 80;        // Más bajo = más rápido
-const STATE_SPEED = 80;       // Cada cuánto se manda estado
+const GAME_SPEED = 130;        // Más bajo = más rápido
+const STATE_SPEED = 110;       // Cada cuánto se manda estado
 const MAX_FOODS = 28;
 const INITIAL_LENGTH = 4;
 const MAX_NAME_LENGTH = 18;
